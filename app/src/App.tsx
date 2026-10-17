@@ -128,7 +128,7 @@ function App() {
 
         const onConnect = () => {
             setStatus('Connected');
-            console.log('SYSTEM', 'Connected to Polymarket Bot');
+            console.log('SYSTEM', 'Connected to Meridian');
             socket.emit('get_market_snapshot');
 
             // Fetch pins for authenticated user

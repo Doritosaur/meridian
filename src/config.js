@@ -5,13 +5,21 @@ dotenv.config();
 function createRedisConnection() {
   const redisUrl = process.env.REDIS_URL;
   if (!redisUrl) {
+    if (process.env.NODE_ENV === 'production' && !process.env.REDIS_HOST) {
+      throw new Error('REDIS_URL (or REDIS_HOST) is not set');
+    }
     return {
       host: process.env.REDIS_HOST || 'localhost',
       port: parseInt(process.env.REDIS_PORT || '6379')
     };
   }
 
-  const url = new URL(redisUrl);
+  let url;
+  try {
+    url = new URL(redisUrl);
+  } catch {
+    throw new Error('REDIS_URL is not a valid URL (expected redis:// or rediss://)');
+  }
   return {
     host: url.hostname,
     port: parseInt(url.port || '6379'),
@@ -22,6 +30,39 @@ function createRedisConnection() {
 }
 
 const redisConnection = createRedisConnection();
+
+// Resolves the Postgres connection string and TLS settings.
+// TLS mode comes from `sslmode` in DATABASE_URL or DATABASE_SSL
+// ('disable' | 'require'). Set DATABASE_SSL_CA (PEM) to verify the server cert.
+function createDbConnection() {
+  const raw = process.env.DATABASE_URL;
+  if (!raw) return { connectionString: '', ssl: false };
+
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error('DATABASE_URL is not a valid connection string');
+  }
+
+  const mode = (url.searchParams.get('sslmode') || process.env.DATABASE_SSL || '').toLowerCase();
+  // pg interprets sslmode itself; strip it so the settings below are authoritative
+  url.searchParams.delete('sslmode');
+
+  const isLocal = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  let ssl;
+  if (mode === 'disable' || (isLocal && !mode)) {
+    ssl = false;
+  } else if (process.env.DATABASE_SSL_CA) {
+    ssl = { ca: process.env.DATABASE_SSL_CA, rejectUnauthorized: true };
+  } else {
+    ssl = { rejectUnauthorized: false };
+  }
+
+  return { connectionString: url.toString(), ssl };
+}
+
+const dbConnection = createDbConnection();
 
 export const config = {
   port: process.env.PORT || 3000,
@@ -35,6 +76,8 @@ export const config = {
   redisPort: redisConnection.port,
   redisConnection,
   adminApiKey: process.env.ADMIN_API_KEY || 'changeme',
+  // Comma-separated dashboard origins allowed by CORS; '*' when unset
+  dashboardOrigins: (process.env.DASHBOARD_ORIGIN || '*').split(',').map(o => o.trim()).filter(Boolean),
 
   // Customization
   colors: {
@@ -43,8 +86,10 @@ export const config = {
     event: 0x0099FF // Blue
   },
   db: {
-    connectionString: process.env.DATABASE_URL || '',
-    host: process.env.POSTGRES_HOST || 'postgres', // Service name in docker-compose
+    connectionString: dbConnection.connectionString,
+    ssl: dbConnection.ssl,
+    // Individual settings are only for a local Postgres; DATABASE_URL takes precedence
+    host: process.env.POSTGRES_HOST || '',
     port: parseInt(process.env.POSTGRES_PORT || '5432'),
     user: process.env.POSTGRES_USER || 'admin',
     password: process.env.POSTGRES_PASSWORD || 'adminpassword',

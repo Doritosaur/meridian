@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "polymarket-bot",
+      "name": "meridian",
       "dependencies": {
         "bullmq": "latest",
         "cors": "latest",

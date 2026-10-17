@@ -1,4 +1,4 @@
-# Polymarket Bot - Logic Summary
+# Meridian - Logic Summary
 
 ## Overview
 

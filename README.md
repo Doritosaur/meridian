@@ -1,89 +1,76 @@
-# Polymarket Monitor Bot
+# Meridian
 
-Monitor Polymarket smart contracts for large transactions and get Discord notifications.
+Real-time prediction-market monitor: whale, volume, velocity and regional-surge signals on a world map, with Discord notifications. Data from Polymarket.
 
 ## Quick Start
 
+Prerequisites:
+- [Bun](https://bun.sh)
+- A Postgres database (e.g. [Supabase](https://supabase.com), session pooler or direct URL)
+- A Redis instance (e.g. [Upstash](https://upstash.com), `rediss://` URL)
 
-1. **Docker Compose (Recommended)**
-   ```bash
-   # .env is optional; use it to override defaults or enable Discord
-   docker-compose up -d --build
-   ```
+Tables are created automatically on first start.
 
-2. **Manual Setup**
-   
-   Prerequisites:
-   - [Bun](https://bun.sh)
-   - Redis (running on default port 6379)
-   - PostgreSQL (running on default port 5432)
+Install dependencies:
+```bash
+bun install
+```
 
-   Install dependencies:
-   ```bash
-   bun install
-   ```
+Optionally configure `.env`:
+```env
+PORT=3000
 
-   Optionally configure `.env`:
-   ```env
-   PORT=3000
-   
-   # Polymarket CLOB Configuration
-   CLOB_WS_URL=wss://ws-subscriptions-clob.polymarket.com/ws/market
-   
-   # Trading Threshold (USD)
-   MIN_AMOUNT_THRESHOLD=1000
+# Polymarket CLOB Configuration
+CLOB_WS_URL=wss://ws-subscriptions-clob.polymarket.com/ws/market
 
-   # Optional Discord integration (omit all three to run without Discord)
-   DISCORD_TOKEN=your_bot_token
-   DISCORD_CLIENT_ID=your_application_id
-   DISCORD_GUILD_ID=your_test_guild_id
-   
-   # Redis Configuration
-   REDIS_HOST=localhost
-   REDIS_PORT=6379
-   
-   # Postgres Configuration
-   POSTGRES_HOST=localhost
-   POSTGRES_PORT=5432
-   POSTGRES_USER=admin
-   POSTGRES_PASSWORD=adminpassword
-   POSTGRES_DB=polymarket
-   
-   # Admin Security
-   ADMIN_API_KEY=changeme
-   ```
+# Trading Threshold (USD)
+MIN_AMOUNT_THRESHOLD=1000
 
-   Run the services (in separate terminals):
-   ```bash
-   # Terminal 1: Ingestion Service (Monitors markets)
-   bun run start:ingest
-   
-   # Terminal 2: API/gateway (also sends notifications when Discord is enabled)
-   bun start
-   ```
+# Optional Discord integration (omit all three to run without Discord)
+DISCORD_TOKEN=your_bot_token
+DISCORD_CLIENT_ID=your_application_id
+DISCORD_GUILD_ID=your_test_guild_id
 
-   The API, signal engine, ingestion service, and web app work without Discord
-   credentials. To enable Discord, set `DISCORD_TOKEN`, then register slash
-   commands separately with `bun run deploy` (requires `DISCORD_CLIENT_ID`).
+# Redis (Upstash) and Postgres (Supabase)
+REDIS_URL=rediss://default:<password>@<name>.upstash.io:6379
+DATABASE_URL=postgresql://postgres.<ref>:<password>@<host>.pooler.supabase.com:5432/postgres
 
-## Deploy a Free PoC on Render
+# Admin Security
+ADMIN_API_KEY=changeme
+```
 
-The included `render.yaml` deploys the project as three free resources and
-connects to the existing Render Postgres database named `ai-docs`:
+Run the services (in separate terminals):
+```bash
+# Terminal 1: Ingestion Service (Monitors markets)
+bun run start:ingest
 
-- `polymarket-service`: the API and ingestion service in one supervised container
-- `polymarket-dashboard`: the static React dashboard
-- `polymarket-redis`: a non-persistent Render Key Value instance
+# Terminal 2: API/gateway (also sends notifications when Discord is enabled)
+bun start
+```
 
-Push the repository to GitHub or GitLab, choose **New → Blueprint** in Render,
-connect the repository, and apply the Blueprint. No Discord variables are
-required. To enable Discord later, add `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, and
-optionally `DISCORD_GUILD_ID` to `polymarket-service`, then run `bun run deploy`
-from a trusted local environment with the same credentials.
+The API, signal engine, ingestion service, and web app work without Discord
+credentials. To enable Discord, set `DISCORD_TOKEN`, then register slash
+commands separately with `bun run deploy` (requires `DISCORD_CLIENT_ID`).
 
-This configuration is intended only for a proof of concept. The web service
-sleeps after Render's free-tier idle period, Redis data can be lost on restart,
-and the free Render Postgres database expires after 30 days.
+## Deployment
+
+- **Backend (Oracle Cloud Always Free VM, or any host that runs Docker):** the
+  API and ingestion service run in one container built from the `Dockerfile`.
+  ```bash
+  docker build -t meridian .
+  docker run -d --name meridian --restart unless-stopped \
+    -p 3000:3000 --env-file .env meridian
+  ```
+  Set `DATABASE_URL` (Supabase), `REDIS_URL` (Upstash), `ADMIN_API_KEY`,
+  `JWT_SECRET` and `DASHBOARD_ORIGIN` (the Vercel URL) in `.env`. Serve the
+  backend over HTTPS (e.g. Cloudflare Tunnel or Caddy) so the dashboard can use
+  `https://` and `wss://`.
+- **Dashboard (Vercel):** import the repo with root directory `app` and set
+  `VITE_API_URL` to the backend's HTTPS URL.
+
+No Discord variables are required. To enable Discord later, add `DISCORD_TOKEN`,
+`DISCORD_CLIENT_ID`, and optionally `DISCORD_GUILD_ID` to `.env`, then run
+`bun run deploy` from a trusted local environment with the same credentials.
 
 ## Discord Commands
 
@@ -122,13 +109,13 @@ curl -X DELETE http://localhost:3000/api/events/presidential-election-2024 \
 
 1. **Ingestion Service**: Connects to Polymarket's **CLOB (Central Limit Order Book)** via WebSocket for real-time trade data. It filters trades by `MIN_AMOUNT_THRESHOLD` and pushes valid trades to a **Redis Queue**.
 2.  **Signal Engine**: Analyzes every single trade in real-time to detect whales ($20k+), volume anomalies, price velocity, and regional surges.
-    *   [📖 Read Signal Engine Docs](SIGNAL_ENGINE.md)
+    *   [📖 Read Signal Engine Docs](docs/SIGNAL_ENGINE.md)
 3.  **Map Engine**: A high-performance visualization system that processes thousands of markets in a WebWorker and renders them using MapLibre GL.
-    *   [📖 Read Map Engine Docs](MAP_ENGINE.md)
+    *   [📖 Read Map Engine Docs](docs/MAP_ENGINE.md)
 4.  **Bot Service**: Consumes trades from Redis, calculates implied probabilities locally (YES + NO = 100%), and formats Discord embeds.
 
 ## Documentation
 
-- [**Signal Engine**](SIGNAL_ENGINE.md): Deep dive into detection algorithms (Whale, Velocity, Anomaly).
-- [**Map Engine**](MAP_ENGINE.md): How the WebGL map handles real-time data and geocoding.
-- [**Logic Summary**](LOGIC_SUMMARY.md): Overview of the microservices architecture.
+- [**Signal Engine**](docs/SIGNAL_ENGINE.md): Deep dive into detection algorithms (Whale, Velocity, Anomaly).
+- [**Map Engine**](docs/MAP_ENGINE.md): How the WebGL map handles real-time data and geocoding.
+- [**Logic Summary**](docs/LOGIC_SUMMARY.md): Overview of the microservices architecture.

@@ -1,14 +1,13 @@
 {
-  "name": "polymarket-bot",
+  "name": "meridian",
   "version": "1.0.0",
-  "description": "A Bun bot for Polymarket",
+  "description": "Real-time prediction-market monitor and signal terminal",
   "main": "src/index.js",
   "type": "module",
   "scripts": {
     "start": "bun run src/index.js",
     "start:all": "bun run src/all-in-one.js",
     "start:ingest": "bun run src/ingest/index.js",
-    "start:docker": "bun run start",
     "dev": "bun --watch src/index.js",
     "lint": "bun run --cwd app lint",
     "deploy": "bun run src/discord/deploy-commands.js"

@@ -8,7 +8,7 @@ interface TerminalCardProps {
     className?: string;
 }
 
-export function TerminalCard({ title = "POLYMARKET_NODE", subTitle = "SHELL", children, className = "" }: TerminalCardProps) {
+export function TerminalCard({ title = "MERIDIAN_NODE", subTitle = "SHELL", children, className = "" }: TerminalCardProps) {
     return (
         <div className={`z-10 bg-black border-2 border-primary shadow-[0_0_30px] shadow-primary/20 ${className}`}>
             {/* Header Bar */}

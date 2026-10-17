@@ -1,9 +1,9 @@
-const configuredApiUrl = import.meta.env.VITE_API_URL?.replace(/\/$/, '');
-const renderApiHost = import.meta.env.VITE_API_HOST;
-
-// Local/Docker development uses the same-origin proxy. Render's static site
-// receives the API hostname from the Blueprint at build time.
-export const API_BASE_URL = configuredApiUrl || (renderApiHost ? `https://${renderApiHost}` : '');
+// Local development uses the Vite same-origin proxy. Hosted builds (e.g. Vercel)
+// must set VITE_API_URL to the backend URL.
+export const API_BASE_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, '') || '';
+if (import.meta.env.PROD && !API_BASE_URL) {
+    console.error('VITE_API_URL is not set: API and websocket requests will go to this origin and fail.');
+}
 export const SOCKET_URL = API_BASE_URL || '/';
 
 // === MAP COLORS CONFIGURATION ===

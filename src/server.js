@@ -15,7 +15,13 @@ export function createServer() {
 
   // Enable CORS for dashboard
   app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
+    const origin = req.headers.origin;
+    if (config.dashboardOrigins.includes('*')) {
+      res.header('Access-Control-Allow-Origin', '*');
+    } else if (origin && config.dashboardOrigins.includes(origin)) {
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Vary', 'Origin');
+    }
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     if (req.method === 'OPTIONS') {

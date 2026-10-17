@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { subscribeToEvents } from './utils/broadcast.js';
 import { marketRegistry } from './database/marketRegistry.js';
 import { clobListener } from './clob/clobListener.js';
+import { config } from './config.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'polymarket-bot-secret-change-me';
 
@@ -13,10 +14,11 @@ export function initializeWebSockets(server) {
 
     io = new Server(server, {
         cors: {
-            origin: "*", // Allow dashboard from any origin (Cloudflare tunnel, etc.)
+            // DASHBOARD_ORIGIN restricts this to the hosted dashboard (e.g. the Vercel URL)
+            origin: config.dashboardOrigins.includes('*') ? '*' : config.dashboardOrigins,
             methods: ["GET", "POST"],
             // Authentication uses the Socket.IO handshake token, not cookies.
-            // Keeping credentials disabled permits the separate Render static origin.
+            // Keeping credentials disabled permits the separately hosted dashboard origin.
             credentials: false
         }
     });
@@ -42,7 +44,7 @@ export function initializeWebSockets(server) {
     io.on('connection', (socket) => {
         console.log(`[WebSocket] Client connected: ${socket.id} (User: ${socket.user?.username})`);
 
-        socket.emit('status', { message: 'Connected to Polymarket Bot' });
+        socket.emit('status', { message: 'Connected to Meridian' });
 
         // Handle initial Snapshot Request
         socket.on('get_market_snapshot', async () => {
@@ -181,7 +183,7 @@ export function initializeWebSockets(server) {
                             status: 'running',
                             uptime: process.uptime(),
                             activeMarkets: activeCount,
-                            service: 'polymarket-bot'
+                            service: 'meridian'
                         };
                         break;
 

@@ -6,7 +6,7 @@ import crypto from 'crypto';
 class MarketRegistry {
     constructor() {
         const poolConfig = config.db.connectionString
-            ? { connectionString: config.db.connectionString }
+            ? { connectionString: config.db.connectionString, ssl: config.db.ssl }
             : {
                 host: config.db.host,
                 port: config.db.port,
@@ -27,6 +27,9 @@ class MarketRegistry {
     }
 
     async initialize() {
+        if (!config.db.connectionString && !config.db.host) {
+            throw new Error('No database configured: set DATABASE_URL (or POSTGRES_HOST for a local Postgres).');
+        }
         await this.waitForDatabase();
         await this.initializeSchema();
     }
@@ -53,8 +56,8 @@ class MarketRegistry {
         let transactionStarted = false;
 
         try {
-            // Gateway and ingestion start concurrently in the free Render web
-            // service. Serialize DDL to avoid PostgreSQL catalog races while
+            // Gateway and ingestion start concurrently in the single-container
+            // deployment. Serialize DDL to avoid PostgreSQL catalog races while
             // CREATE TABLE IF NOT EXISTS is running in both processes.
             await client.query('SELECT pg_advisory_lock(hashtext($1))', [schemaLockName]);
             schemaLockAcquired = true;

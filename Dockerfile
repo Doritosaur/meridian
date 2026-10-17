@@ -12,4 +12,4 @@ COPY src ./src
 EXPOSE 3000
 
 # Start the bot
-CMD ["bun", "run", "start:docker"]
+CMD ["bun", "run", "start:all"]

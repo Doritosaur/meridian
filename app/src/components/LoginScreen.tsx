@@ -66,7 +66,7 @@ export function LoginScreen() {
             <CRTEffect />
 
             <div className="z-10 w-full max-w-md">
-                <TerminalCard title="POLYMARKET_NODE" subTitle="LOGIN_SHELL">
+                <TerminalCard title="MERIDIAN_NODE" subTitle="LOGIN_SHELL">
                     {/* Terminal Log Output */}
                     <div className="mb-6 font-mono text-xs opacity-70 border-l border-primary/30 pl-3">
                         {terminalLines.map((line, i) => (

@@ -32,7 +32,7 @@ export function createTradeEmbed(data) {
             iconURL: data.image || `${config.polymarket.appUrl}/favicon.ico`,
             url: marketLink
         })
-        .setFooter({ text: 'Polymarket Bot', iconURL: `${config.polymarket.appUrl}/images/brand/icon-blue.png` })
+        .setFooter({ text: 'Meridian', iconURL: `${config.polymarket.appUrl}/images/brand/icon-blue.png` })
         .setTimestamp(new Date(data.timestamp));
 
     if (data.type === 'trade') {
