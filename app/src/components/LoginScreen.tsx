@@ -14,7 +14,7 @@ export function LoginScreen() {
     const [isLoading, setIsLoading] = useState(false);
     const [terminalLines, setTerminalLines] = useState<string[]>(['> SYSTEM_READY', '> AWAITING_AUTH...']);
 
-    const { loginError, registerError, setUser, setLoginError, setRegisterError } = useAuthStore();
+    const { loginError, registerError, setUser, setLoginError, setRegisterError, setShowLogin } = useAuthStore();
 
     const addLog = (msg: string) => setTerminalLines(prev => [...prev.slice(-4), msg]);
 
@@ -144,6 +144,16 @@ export function LoginScreen() {
                             disabled={isLoading}
                         >
                             [{isRegistering ? "Switch to Login" : "Initialize New User"}]
+                        </button>
+                    </div>
+
+                    <div className="mt-2 text-center text-xs">
+                        <button
+                            onClick={() => setShowLogin(false)}
+                            className="hover:bg-primary hover:text-black px-2 py-1 transition-colors uppercase opacity-70"
+                            disabled={isLoading}
+                        >
+                            [Continue as guest]
                         </button>
                     </div>
                 </TerminalCard>

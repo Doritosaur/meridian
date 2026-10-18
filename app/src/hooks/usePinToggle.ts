@@ -13,7 +13,7 @@ export function usePinToggle() {
     const toggle = useCallback((conditionId: string) => {
         togglePin(conditionId);
         if (socket && user) {
-            socket.emit('toggle_pin', { userId: user.id, conditionId });
+            socket.emit('toggle_pin', { conditionId });
         }
     }, [togglePin, socket, user]);
 

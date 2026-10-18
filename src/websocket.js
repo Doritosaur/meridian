@@ -23,12 +23,13 @@ export function initializeWebSockets(server) {
         }
     });
 
-    // JWT Authentication Middleware
+    // Optional JWT authentication: no token connects as a guest (socket.user = null),
+    // a bad token is rejected so the client can drop it and reconnect as a guest.
     io.use((socket, next) => {
         const token = socket.handshake.auth?.token;
         if (!token) {
-            console.log(`[WebSocket] Rejected connection: No token provided`);
-            return next(new Error('Authentication required'));
+            socket.user = null;
+            return next();
         }
 
         try {
@@ -42,7 +43,7 @@ export function initializeWebSockets(server) {
     });
 
     io.on('connection', (socket) => {
-        console.log(`[WebSocket] Client connected: ${socket.id} (User: ${socket.user?.username})`);
+        console.log(`[WebSocket] Client connected: ${socket.id} (User: ${socket.user?.username || 'guest'})`);
 
         socket.emit('status', { message: 'Connected to Meridian' });
 
@@ -141,8 +142,10 @@ export function initializeWebSockets(server) {
             }
         });
 
-        socket.on('get_pins', async (data) => {
-            const { userId } = data;
+        // Pins belong to the authenticated user; the id comes from the verified
+        // token, never from the client payload.
+        socket.on('get_pins', async () => {
+            const userId = socket.user?.id;
             if (!userId) return;
             try {
                 const pins = await marketRegistry.getUserPins(userId);
@@ -156,7 +159,8 @@ export function initializeWebSockets(server) {
         });
 
         socket.on('toggle_pin', async (data) => {
-            const { userId, conditionId } = data;
+            const userId = socket.user?.id;
+            const { conditionId } = data || {};
             if (!userId || !conditionId) return;
             try {
                 const isPinned = await marketRegistry.toggleUserPin(userId, conditionId);

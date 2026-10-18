@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import io from 'socket.io-client';
-import { Globe, LogOut, Terminal } from "lucide-react";
+import { Globe, LogIn, LogOut, Terminal } from "lucide-react";
 
 import { LoginScreen } from './components/LoginScreen';
 import { WhaleFeedPopover } from './components/WhaleFeedPopover';
@@ -71,7 +71,7 @@ interface ServerEvent {
 }
 
 function App() {
-    const { isAuthenticated, user, token, logout, socket, setSocket, setStatus } = useAuthStore();
+    const { isAuthenticated, user, token, logout, socket, setSocket, setStatus, showLogin, setShowLogin } = useAuthStore();
 
     const {
         marketMap, setSnapshot, updatePrice, addTrade
@@ -79,21 +79,11 @@ function App() {
 
     const markets = Array.from(marketMap.values());
 
-    // Only connect socket when authenticated (with JWT token)
+    // Always connect; login is optional. The JWT is sent when present and the
+    // socket reconnects whenever it changes (login/logout).
     useEffect(() => {
-        if (!isAuthenticated || !token) {
-            // Close any existing connection if user logs out
-            const currentSocket = useAuthStore.getState().socket;
-            if (currentSocket) {
-                currentSocket.close();
-                setSocket(null);
-            }
-            return;
-        }
-
-        // Connect with JWT token in handshake
         const newSocket = io(SOCKET_URL, {
-            auth: { token }
+            auth: token ? { token } : {}
         });
         setSocket(newSocket);
 
@@ -101,7 +91,7 @@ function App() {
             newSocket.close();
             setSocket(null);
         };
-    }, [isAuthenticated, token, setSocket]);
+    }, [token, setSocket]);
 
 
 
@@ -131,10 +121,9 @@ function App() {
             console.log('SYSTEM', 'Connected to Meridian');
             socket.emit('get_market_snapshot');
 
-            // Fetch pins for authenticated user
-            const { user } = useAuthStore.getState();
-            if (user) {
-                socket.emit('get_pins', { userId: user.id });
+            // Pins are per-user; the server reads the user from the token
+            if (useAuthStore.getState().user) {
+                socket.emit('get_pins');
             }
         };
 
@@ -145,10 +134,11 @@ function App() {
 
         const onConnectError = (error: Error) => {
             console.error('SYSTEM', 'Connection error:', error.message);
-            setStatus('Auth Failed');
-            // If token is invalid, force logout
-            if (error.message.includes('Authentication') || error.message.includes('token')) {
+            // A rejected token is dropped; the socket then reconnects as a guest
+            if (error.message.includes('Invalid token')) {
                 logout();
+            } else {
+                setStatus('Disconnected');
             }
         };
 
@@ -249,13 +239,15 @@ function App() {
         return () => clearInterval(interval);
     }, []);
 
-    if (!isAuthenticated) {
-        return <LoginScreen />;
-    }
-
     return (
         <div className="h-screen bg-black text-primary font-mono flex overflow-hidden selection:bg-primary selection:text-black">
             <CRTEffect />
+
+            {showLogin && !isAuthenticated && (
+                <div className="fixed inset-0 z-50 bg-black">
+                    <LoginScreen />
+                </div>
+            )}
 
             {/* Sidebar Navigation */}
             <aside className="w-16 flex flex-col items-center py-6 border-r-2 border-primary bg-black z-20">
@@ -264,19 +256,28 @@ function App() {
                 </div>
 
                 <div className="flex flex-col gap-4">
-                    <div className="p-2 bg-primary/10 rounded-none text-primary hover:bg-primary hover:text-black transition cursor-pointer border border-primary/50" title="Map View">
+                    <div className="p-2 bg-primary/10 rounded-none text-primary hover:bg-primary hover:text-black transition cursor-pointer border border-primary/50" title="Home">
                         <Globe className="w-5 h-5" />
                     </div>
                 </div>
 
 
                 <div className="mt-auto flex flex-col items-center gap-4">
-                    <div className="p-1 border border-primary/20 bg-black" title={user?.username}>
+                    <div className="p-1 border border-primary/20 bg-black" title={user?.username || 'Guest'}>
                         <pre className="text-[8px] leading-[8px] font-bold text-primary font-mono whitespace-pre select-none">
                             {generateAsciiAvatar(user?.username || 'GUEST')}
                         </pre>
                     </div>
-                    <Dialog>
+                    {!isAuthenticated && (
+                        <button
+                            onClick={() => setShowLogin(true)}
+                            className="p-2 text-primary/50 hover:text-primary transition"
+                            title="Login"
+                        >
+                            <LogIn className="w-5 h-5" />
+                        </button>
+                    )}
+                    {isAuthenticated && <Dialog>
                         <DialogTrigger asChild>
                             <button className="p-2 text-primary/50 hover:text-destructive transition" title="Logout">
                                 <LogOut className="w-5 h-5" />
@@ -306,7 +307,7 @@ function App() {
                                 </Button>
                             </DialogFooter>
                         </DialogContent>
-                    </Dialog>
+                    </Dialog>}
                 </div>
             </aside>
             <main className="flex-1 flex flex-col min-w-0 relative">
@@ -314,7 +315,7 @@ function App() {
                 <header className="h-16 bg-black border-b-2 border-primary px-8 flex items-center justify-between z-10 shrink-0">
                     <div className="pointer-events-auto">
                         <h1 className="text-xl font-bold tracking-tight text-primary flex items-center gap-2 font-mono">
-                            FENT_GOBLIN // <span className="text-xs font-mono text-black bg-primary px-1 animate-pulse">LIVE_CONNECTION</span>
+                            MERIDIAN //<span className="text-xs font-mono text-black bg-primary px-1 animate-pulse">LIVE_CONNECTION</span>
                         </h1>
                         <p className="text-xs text-primary/70 typewriter">Global Event Surveillance System v1.0</p>
                     </div>

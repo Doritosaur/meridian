@@ -15,7 +15,9 @@ interface AuthState {
     loginError: string | null;
     registerError: string | null;
     status: string;
+    showLogin: boolean;
 
+    setShowLogin: (show: boolean) => void;
     setUser: (user: User, token: string) => void;
     logout: () => void;
     setSocket: (socket: Socket | null) => void;
@@ -34,8 +36,10 @@ export const useAuthStore = create<AuthState>()(
             loginError: null,
             registerError: null,
             status: 'Disconnected',
+            showLogin: false,
 
-            setUser: (user, token) => set({ user, token, isAuthenticated: true, loginError: null, registerError: null }),
+            setShowLogin: (showLogin) => set({ showLogin }),
+            setUser: (user, token) => set({ user, token, isAuthenticated: true, showLogin: false, loginError: null, registerError: null }),
             logout: () => {
                 localStorage.removeItem('auth-storage'); // Force clear
                 set({ user: null, token: null, isAuthenticated: false });
