@@ -57,9 +57,7 @@ commands separately with `bun run deploy` (requires `DISCORD_CLIENT_ID`).
 - **Backend (Oracle Cloud Always Free VM, or any host that runs Docker):** the
   API and ingestion service run in one container built from the `Dockerfile`.
   ```bash
-  docker build -t meridian .
-  docker run -d --name meridian --restart unless-stopped \
-    -p 3000:3000 --env-file .env meridian
+  docker compose up -d --build
   ```
   Set `DATABASE_URL` (Supabase), `REDIS_URL` (Upstash), `ADMIN_API_KEY`,
   `JWT_SECRET` and `DASHBOARD_ORIGIN` (the Vercel URL) in `.env`. Serve the
