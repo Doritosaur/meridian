@@ -9,9 +9,27 @@ export const marketQueue = new Queue('market-fetch-queue', { connection });
 
 let worker;
 
+// Gamma resets connections on large responses / transient network blips, so retry with backoff
+async function fetchPageWithRetry(url, attempts = 4) {
+    for (let attempt = 1; ; attempt++) {
+        try {
+            const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+            if (!response.ok) {
+                throw new Error(`API returned ${response.status}: ${response.statusText}`);
+            }
+            return await response.json();
+        } catch (err) {
+            if (attempt >= attempts) throw err;
+            const delay = 1000 * 2 ** (attempt - 1);
+            console.warn(`[MarketFetch] Attempt ${attempt}/${attempts} failed (${err.message}); retrying in ${delay}ms`);
+            await new Promise(r => setTimeout(r, delay));
+        }
+    }
+}
+
 async function fetchAllActiveMarkets(onBatch) {
     let offset = 0;
-    const limit = 1000; // Increased limit for fewer requests, Gamma supports up to 1000 usually
+    const limit = 250; // Smaller pages are less likely to be reset mid-response
     let hasMore = true;
     let batch = [];
     const BATCH_SIZE = 500; // Upsert every 500 markets to save memory
@@ -20,13 +38,7 @@ async function fetchAllActiveMarkets(onBatch) {
         try {
             const url = `${config.polymarket.gammaApiUrl}/events?active=true&closed=false&limit=${limit}&offset=${offset}`;
             console.log(`[MarketFetch] Fetching offset ${offset}...`);
-            const response = await fetch(url);
-
-            if (!response.ok) {
-                throw new Error(`API returned ${response.status}: ${response.statusText}`);
-            }
-
-            const events = await response.json();
+            const events = await fetchPageWithRetry(url);
 
             if (!Array.isArray(events) || events.length === 0) {
                 hasMore = false;
