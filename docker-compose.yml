@@ -7,8 +7,13 @@ services:
     environment:
       # Overrides any Upstash REDIS_URL in .env so the app uses the local container
       REDIS_URL: redis://redis:6379
+      # Overrides any Supabase DATABASE_URL in .env; sslmode=disable because the
+      # "postgres" host isn't treated as local by config.js
+      DATABASE_URL: postgresql://meridian:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/meridian?sslmode=disable
     depends_on:
       redis:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     ports:
       - "3000:3000"
@@ -34,5 +39,34 @@ services:
       timeout: 3s
       retries: 5
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: meridian-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: meridian
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: meridian
+    # Small-VM tuning: low memory footprint, few connections
+    command:
+      - postgres
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - max_connections=30
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=32MB
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    # No published port: only reachable from other containers on this compose network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U meridian -d meridian"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
 volumes:
   redis-data:
+  postgres-data:
