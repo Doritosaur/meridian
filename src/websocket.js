@@ -4,15 +4,23 @@ import { subscribeToEvents } from './utils/broadcast.js';
 import { marketRegistry } from './database/marketRegistry.js';
 import { clobListener } from './clob/clobListener.js';
 import { config } from './config.js';
+import { createLimiter, socketIp } from './utils/rateLimit.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'polymarket-bot-secret-change-me';
 
 let io;
 
+const MAX_CONNECTIONS_PER_IP = 10;
+const openByIp = new Map();
+const connectLimit = createLimiter({ windowMs: 60_000, max: 30 });
+const eventLimit = createLimiter({ windowMs: 10_000, max: 40 });
+const authEventLimit = createLimiter({ windowMs: 15 * 60_000, max: 20 });
+
 export function initializeWebSockets(server) {
     if (io) return io;
 
     io = new Server(server, {
+        maxHttpBufferSize: 1e5, // 100 KB; default is 1 MB
         cors: {
             // DASHBOARD_ORIGIN restricts this to the hosted dashboard (e.g. the Vercel URL)
             origin: config.dashboardOrigins.includes('*') ? '*' : config.dashboardOrigins,
@@ -25,6 +33,19 @@ export function initializeWebSockets(server) {
 
     // Optional JWT authentication: no token connects as a guest (socket.user = null),
     // a bad token is rejected so the client can drop it and reconnect as a guest.
+    // Cap new connections per IP and concurrent connections per IP
+    io.use((socket, next) => {
+        const ip = socketIp(socket, config.trustProxy);
+        socket.clientIp = ip;
+        if (!connectLimit(ip).allowed) {
+            return next(new Error('Too many connections'));
+        }
+        if ((openByIp.get(ip) || 0) >= MAX_CONNECTIONS_PER_IP) {
+            return next(new Error('Too many connections'));
+        }
+        next();
+    });
+
     io.use((socket, next) => {
         const token = socket.handshake.auth?.token;
         if (!token) {
@@ -44,6 +65,21 @@ export function initializeWebSockets(server) {
 
     io.on('connection', (socket) => {
         console.log(`[WebSocket] Client connected: ${socket.id} (User: ${socket.user?.username || 'guest'})`);
+
+        openByIp.set(socket.clientIp, (openByIp.get(socket.clientIp) || 0) + 1);
+
+        // Per-socket throttle on every client event; auth events get a much tighter budget
+        socket.use(([event], next) => {
+            const key = `${socket.clientIp}`;
+            const isAuth = event === 'login' || event === 'register';
+            const result = isAuth ? authEventLimit(key) : eventLimit(socket.id);
+            if (!result.allowed) {
+                return next(new Error('Rate limit exceeded'));
+            }
+            next();
+        });
+
+        socket.on('error', () => { /* rate-limit / middleware errors; nothing to do */ });
 
         socket.emit('status', { message: 'Connected to Meridian' });
 
@@ -216,6 +252,9 @@ export function initializeWebSockets(server) {
         });
 
         socket.on('disconnect', () => {
+            const open = (openByIp.get(socket.clientIp) || 1) - 1;
+            if (open <= 0) openByIp.delete(socket.clientIp);
+            else openByIp.set(socket.clientIp, open);
             console.log(`[WebSocket] Client disconnected: ${socket.id}`);
         });
     });

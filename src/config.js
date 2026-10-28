@@ -76,6 +76,8 @@ export const config = {
   redisPort: redisConnection.port,
   redisConnection,
   adminApiKey: process.env.ADMIN_API_KEY || 'changeme',
+  // Set TRUST_PROXY=1 when behind Cloudflare/nginx so rate limits key on the real client IP
+  trustProxy: process.env.TRUST_PROXY === '1' || process.env.TRUST_PROXY === 'true',
   // Comma-separated dashboard origins allowed by CORS; '*' when unset
   dashboardOrigins: (process.env.DASHBOARD_ORIGIN || '*').split(',').map(o => o.trim()).filter(Boolean),
 

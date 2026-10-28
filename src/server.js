@@ -4,6 +4,7 @@ import { marketRegistry } from './database/marketRegistry.js';
 import { config } from './config.js';
 import { getEvent, getMarket } from './utils/gammaClient.js';
 import { publishEvent, EventType } from './utils/broadcast.js';
+import { expressRateLimit } from './utils/rateLimit.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'polymarket-bot-secret-change-me';
 const JWT_EXPIRES_IN = '7d';
@@ -11,7 +12,16 @@ const JWT_EXPIRES_IN = '7d';
 export function createServer() {
   const app = express();
 
-  app.use(express.json());
+  if (config.trustProxy) app.set('trust proxy', 1);
+
+  app.use(express.json({ limit: '10kb' }));
+
+  const globalLimit = expressRateLimit({ windowMs: 60_000, max: 120 });
+  const authLimit = expressRateLimit({ windowMs: 15 * 60_000, max: 20 });
+  const registerLimit = expressRateLimit({ windowMs: 60 * 60_000, max: 5 });
+  const adminLimit = expressRateLimit({ windowMs: 60_000, max: 30 });
+
+  app.use('/api', globalLimit);
 
   // Enable CORS for dashboard
   app.use((req, res, next) => {
@@ -42,7 +52,7 @@ export function createServer() {
 
 
   // ============ AUTH ENDPOINTS ============
-  app.post('/api/auth/login', async (req, res) => {
+  app.post('/api/auth/login', authLimit, async (req, res) => {
     try {
       const { username, password } = req.body;
       if (!username || !password) {
@@ -62,7 +72,7 @@ export function createServer() {
     }
   });
 
-  app.post('/api/auth/register', async (req, res) => {
+  app.post('/api/auth/register', registerLimit, async (req, res) => {
     try {
       const { username, password } = req.body;
       if (!username || !password) {
@@ -84,6 +94,10 @@ export function createServer() {
   // ============ ADMIN MIDDLEWARE ============
   // Middleware for API Key Authentication
   const requireAuth = (req, res, next) => {
+    adminLimit(req, res, () => checkApiKey(req, res, next));
+  };
+
+  const checkApiKey = (req, res, next) => {
     const apiKey = req.get('x-api-key');
     if (!apiKey || apiKey !== config.adminApiKey) {
       return res.status(401).json({ success: false, error: 'Unauthorized: Invalid API Key' });
