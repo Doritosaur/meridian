@@ -4,6 +4,12 @@ services:
     container_name: meridian
     restart: unless-stopped
     env_file: .env
+    environment:
+      # Overrides any Upstash REDIS_URL in .env so the app uses the local container
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
     ports:
       - "3000:3000"
     healthcheck:
@@ -12,3 +18,21 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: meridian-redis
+    restart: unless-stopped
+    # BullMQ requires noeviction; AOF keeps queued jobs across restarts
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis-data:/data
+    # No published port: only reachable from other containers on this compose network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  redis-data:
